@@ -211,6 +211,9 @@ class RiotWatcher:
         self.key = key
         self.default_region = default_region
         self.limits = limits
+        self.sleep_time = 1.5
+        self.total_requests = 0.0
+        self.failed_requests  = 0.0
 
     def can_make_request(self):
         for lim in self.limits:
@@ -225,20 +228,81 @@ class RiotWatcher:
         for k in kwargs:
             if kwargs[k] is not None:
                 args[k] = kwargs[k]
-        r = requests.get(
-            'https://{proxy}.api.pvp.net/api/lol/{static}{region}/{url}'.format(
-                proxy='global' if static else region,
-                static='static-data/' if static else '',
-                region=region,
-                url=url
-            ),
-            params=args
-        )
+        while(not self.can_make_request()):
+            print("    Sleeping for 5 seconds to wait for request timelimit...")
+            time.sleep(5)
+        tries = 0
+        while(True):
+            try:
+                r = requests.get(
+                    'https://{proxy}.api.pvp.net/api/lol/{static}{region}/{url}'.format(
+                        proxy='global' if static else region,
+                        static='static-data/' if static else '',
+                        region=region,
+                        url=url
+                    ),
+                    params=args
+                )
+                if(r.status_code != 504 or tries >= 5):
+                    break
+                else:
+                    tries += 1
+                    time.sleep(5)
+            except requests.exceptions.ConnectionError:
+                tries += 1
+                time.sleep(5)
+        self.total_requests += 1
         if not static:
             for lim in self.limits:
                 lim.add_request()
+        #print("    Ran base request:  {0}".format('https://{proxy}.api.pvp.net/api/lol/{static}{region}/{url}'.format(proxy='global' if static else region,static='static-data/' if static else '',region=region,url=url)))
+        if(r.status_code == 503):
+            self.failed_requests += 1
+            print("    503 ERROR! Retrying base_request:  {0}  {1}% failed".format(url, round(100.0*self.failed_requests/self.total_requests,2)))
+            time.sleep(5)
+            r = self.base_request_retry(url,region,static, **kwargs)
         raise_status(r)
         return r.json()
+
+    def base_request_retry(self, url, region, static=False, **kwargs):
+        """ Returns r instead of r.json() """
+        if region is None:
+            region = self.default_region
+        args = {'api_key': self.key}
+        for k in kwargs:
+            if kwargs[k] is not None:
+                args[k] = kwargs[k]
+        tries = 0
+        while(True): # To retry on GatewayTimeout errors
+            try: # For Connection Error errors in module requests
+                r = requests.get(
+                    'https://{proxy}.api.pvp.net/api/lol/{static}{region}/{url}'.format(
+                        proxy='global' if static else region,
+                        static='static-data/' if static else '',
+                        region=region,
+                        url=url
+                    ),
+                    params=args
+                )
+                if(r.status_code != 504 or tries >= 5):
+                    break
+                else:
+                    tries += 1
+                    time.sleep(5)
+            except requests.exceptions.ConnectionError:
+                tries += 1
+                time.sleep(5)
+            self.total_requests += 1
+            if not static:
+                for lim in self.limits:
+                    lim.add_request()
+            if(r.status_code == 503): # For retrying on Service Unavailable errors (Riot stability problem)
+                self.failed_requests += 1
+                #print("    503 ERROR! Retrying base_request:  {0}  {1}% failed".format(url, round(100.0*self.failed_requests/self.total_requests,2)))
+                time.sleep(3)
+                r = self.base_request_retry(url,region,static, **kwargs)
+            raise_status(r)
+            return r
 
     def _observer_mode_request(self, url, proxy=None, **kwargs):
         if proxy is None:
