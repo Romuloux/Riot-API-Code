@@ -181,7 +181,12 @@ def main():
             if(match['matchId'] not in pulled_matchIds and pull_this_match(match)):
                 # Pull match
                 print("  Getting match data for matchId {0}...".format(match['matchId']))
-                match_data = w.get_match(match['matchId'],include_timeline=False)
+                try:
+                    match_data = w.get_match(match['matchId'],include_timeline=False)
+                except LoLException:
+                    pulled_matchIds.append(match_data['matchId'])
+                    these_pulled_matches.append(match_data['matchId'])
+                    continue
                 pulled_matches += 1.0
                 # Append the matchId to the pulled matches list
                 pulled_matchIds.append(match_data['matchId'])
@@ -211,6 +216,7 @@ def main():
             print("SAVING {0} MATCHES!".format(num_matches))
             # This saves the data as a cPickle. See Python's documentation for more info.
             save_obj(match_data_to_save,'game_data_{0}.pkl'.format(step))
+            match_data_to_save = []
             num_matches = 0
             for mid in these_pulled_matches:
                 pulled_matchIds_file.write("{0}\n".format(mid))
