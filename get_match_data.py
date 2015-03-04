@@ -220,6 +220,7 @@ def main():
             num_matches = 0
             for mid in these_pulled_matches:
                 pulled_matchIds_file.write("{0}\n".format(mid))
+            these_pulled_matches = []
             # Save (append) the summonerIds we pulled to file
             for summoner in these_pulled_summoners:
                 pulled_summoners_file.write("{0}\n".format(summoner))
