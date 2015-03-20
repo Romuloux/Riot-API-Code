@@ -156,7 +156,7 @@ def main():
             new_summoner = unpulled_summoners.pop()
         except IndexError:
             new_summoner = pulled_summoners.pop(0)
-            print("Ran out of unpulled summoners, redoing a pulled summoner now. {0}".format(new_team))
+            print("Ran out of unpulled summoners, redoing a pulled summoner now. {0}".format(new_summoner))
         print("Getting match history from summoner: {0}".format(new_summoner))
         try:
             match_history = w.get_match_history(new_summoner,begin_index=0,end_index=15)
